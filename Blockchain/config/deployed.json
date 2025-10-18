@@ -1,0 +1,54 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "deployedAt": "2025-10-17T13:14:49.945Z",
+  "deployer": "0x31fDE8Da4747B34C3bA910126c0B823c1f87333B",
+  "contracts": {
+    "MyToken": {
+      "address": "0x594483520fbE61d32c53ED1B4588403dcF33a300",
+      "name": "MyToken",
+      "symbol": "MTK",
+      "initialSupply": 10000,
+      "decimals": 18
+    },
+    "MyTokenStaking": {
+      "address": "0x26b32F1E4acdF3D97Bd74dB80683Ce86fb533BF8",
+      "tokenAddress": "0x594483520fbE61d32c53ED1B4588403dcF33a300",
+      "platformFee": 5
+    }
+  },
+  "tiers": [
+    {
+      "id": 1,
+      "name": "Bronze",
+      "minAmount": 100,
+      "maxAmount": 1000,
+      "apy": 10,
+      "lockingDays": 7
+    },
+    {
+      "id": 2,
+      "name": "Silver",
+      "minAmount": 500,
+      "maxAmount": 2000,
+      "apy": 15,
+      "lockingDays": 14
+    },
+    {
+      "id": 3,
+      "name": "Gold",
+      "minAmount": 1000,
+      "maxAmount": 5000,
+      "apy": 25,
+      "lockingDays": 30
+    },
+    {
+      "id": 4,
+      "name": "Platinum",
+      "minAmount": 2000,
+      "maxAmount": 10000,
+      "apy": 40,
+      "lockingDays": 60
+    }
+  ]
+}
