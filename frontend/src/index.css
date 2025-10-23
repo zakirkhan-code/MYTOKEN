@@ -1,0 +1,190 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #f8f9fa;
+  color: #333;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #007bff;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #0056b3;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Utilities */
+.card {
+  @apply bg-white rounded-lg shadow-md p-6 transition-all duration-300 hover:shadow-lg;
+}
+
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-secondary {
+  @apply bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800;
+}
+
+.btn-success {
+  @apply bg-green-600 text-white hover:bg-green-700 active:bg-green-800;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+}
+
+.btn-warning {
+  @apply bg-yellow-600 text-white hover:bg-yellow-700 active:bg-yellow-800;
+}
+
+.btn-ghost {
+  @apply bg-transparent text-gray-600 hover:bg-gray-100 border border-gray-200;
+}
+
+.btn-outline {
+  @apply bg-transparent border-2 border-blue-600 text-blue-600 hover:bg-blue-50;
+}
+
+.btn-sm {
+  @apply px-3 py-1 text-sm;
+}
+
+.btn-lg {
+  @apply px-6 py-3 text-lg;
+}
+
+.input {
+  @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all;
+}
+
+.input-error {
+  @apply border-red-500 focus:ring-red-200;
+}
+
+.label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+.badge {
+  @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-primary {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.badge-success {
+  @apply bg-green-100 text-green-800;
+}
+
+.badge-warning {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.badge-danger {
+  @apply bg-red-100 text-red-800;
+}
+
+.spinner {
+  @apply border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin;
+}
+
+.admin-card {
+  @apply bg-white rounded-xl shadow-admin p-6 border border-gray-100;
+}
+
+/* Admin specific */
+.admin-sidebar-item {
+  @apply px-4 py-3 rounded-lg transition-colors hover:bg-slate-700;
+}
+
+.admin-sidebar-item.active {
+  @apply bg-blue-600 text-white;
+}

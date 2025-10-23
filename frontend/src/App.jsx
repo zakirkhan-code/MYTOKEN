@@ -1,163 +1,84 @@
-// App.jsx - Main Application with Routing and Protected Routes
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { Toaster } from 'react-hot-toast';
+import { useAuthStore } from './store';
+import { initializeRealtimeSync } from './services/realtimeSync';
 
-// Navigation
-import Navigation from './components/Navigation';
+// Components
+import { ProtectedRoute, AdminRoute, UserRoute } from './components/ProtectedRoute';
+import UserLayout from './components/User/UserLayout';
+import AdminLayout from './components/Admin/AdminLayout';
 
-// Pages
-import Home from './pages/Home';
-import Register from './pages/Register';
+// Pages - Public
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Profile from './pages/Profile';
-import Transactions from './pages/Transactions';
-import Settings from './pages/Settings';
-import Staking from './pages/Staking';
+import Register from './pages/Register';
 
-// Services
-import authService from './services/authService';
+// Pages - User Panel
+import UserDashboard from './pages/User/Dashboard';
 
-// ============================================================================
-// PROTECTED ROUTE COMPONENT
-// ============================================================================
-function ProtectedRoute({ children }) {
-  if (!authService.isAuthenticated()) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-}
+// Pages - Admin Panel
+import AdminDashboard from './pages/Admin/Dashboard';
 
-// ============================================================================
-// PUBLIC ROUTE COMPONENT (Redirect if already logged in)
-// ============================================================================
-function PublicRoute({ children }) {
-  if (authService.isAuthenticated()) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  return children;
-}
-
-// ============================================================================
-// MAIN APP COMPONENT
-// ============================================================================
 export default function App() {
+  const { token, user } = useAuthStore();
+
+  useEffect(() => {
+    // Initialize real-time updates when user is authenticated
+    if (token && user) {
+      console.log('🔄 Initializing real-time sync...');
+      initializeRealtimeSync();
+    }
+  }, [token, user]);
+
   return (
     <Router>
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        {/* ===================================================================== */
-        {/* NAVIGATION BAR */
-        {/* ===================================================================== */}
-        <Navigation />
+      <Toaster position="top-right" />
+      
+      <Routes>
+        {/* ========== PUBLIC ROUTES ========== */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<div className="text-center p-8">Coming soon</div>} />
 
-        {/* ===================================================================== */
-        {/* MAIN CONTENT */
-        {/* ===================================================================== */}
-        <main>
-          <Routes>
-            {/* ============================================================== */
-            {/* PUBLIC ROUTES */
-            {/* ============================================================== */}
-            
-            <Route path="/" element={<Home />} />
-            
-            <Route
-              path="/register"
-              element={
-                <PublicRoute>
-                  <Register />
-                </PublicRoute>
-              }
-            />
-            
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
+        {/* ========== USER ROUTES ========== */}
+        <Route
+          element={
+            <UserRoute>
+              <UserLayout />
+            </UserRoute>
+          }
+        >
+          <Route path="/dashboard" element={<UserDashboard />} />
+          <Route path="/staking" element={<div className="p-8">Staking Page Coming Soon</div>} />
+          <Route path="/history" element={<div className="p-8">History Page Coming Soon</div>} />
+          <Route path="/wallet" element={<div className="p-8">Wallet Page Coming Soon</div>} />
+          <Route path="/analytics" element={<div className="p-8">Analytics Page Coming Soon</div>} />
+          <Route path="/settings" element={<div className="p-8">Settings Page Coming Soon</div>} />
+          <Route path="/security" element={<div className="p-8">Security Page Coming Soon</div>} />
+          <Route path="/profile" element={<div className="p-8">Profile Page Coming Soon</div>} />
+        </Route>
 
-            {/* ============================================================== */
-            {/* PROTECTED ROUTES (Logged in users only) */
-            {/* ============================================================== */}
-            
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/transactions"
-              element={
-                <ProtectedRoute>
-                  <Transactions />
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/staking"
-              element={
-                <ProtectedRoute>
-                  <Staking />
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
+        {/* ========== ADMIN ROUTES ========== */}
+        <Route
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<div className="p-8 text-white">Users Management Coming Soon</div>} />
+          <Route path="/admin/transactions" element={<div className="p-8 text-white">Transactions Management Coming Soon</div>} />
+          <Route path="/admin/analytics" element={<div className="p-8 text-white">Analytics Coming Soon</div>} />
+          <Route path="/admin/reports" element={<div className="p-8 text-white">Reports Coming Soon</div>} />
+          <Route path="/admin/settings" element={<div className="p-8 text-white">Settings Coming Soon</div>} />
+          <Route path="/admin/security" element={<div className="p-8 text-white">Security Coming Soon</div>} />
+        </Route>
 
-            {/* ============================================================== */
-            {/* 404 CATCH ALL */
-            {/* ============================================================== */}
-            
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-
-        {/* ===================================================================== */
-        {/* TOAST NOTIFICATIONS */
-        {/* ===================================================================== */}
-        <ToastContainer
-          position="bottom-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={true}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="dark"
-          style={{
-            '--toastify-color-light': '#1e293b',
-            '--toastify-text-color-light': '#f1f5f9',
-          }}
-        />
-      </div>
+        {/* ========== FALLBACK ROUTES ========== */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
     </Router>
   );
 }

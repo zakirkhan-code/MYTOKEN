@@ -1,312 +1,265 @@
-// pages/Register.jsx - Beautiful Registration Page
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, Eye, EyeOff, UserPlus, Loader, CheckCircle } from 'lucide-react';
-import authService from '../services/authService';
-import { toast } from 'react-toastify';
+import { Mail, Lock, Eye, EyeOff, User, AlertCircle, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { authAPI } from '../services/api';
 
 export default function Register() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
+    terms: false
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [agreeTerms, setAgreeTerms] = useState(false);
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-    confirmPassword: ''
-  });
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [passwordStrength, setPasswordStrength] = useState(0);
 
-  // Password strength checker
-  const checkPasswordStrength = (password) => {
+  const calculatePasswordStrength = (password) => {
     let strength = 0;
     if (password.length >= 8) strength++;
     if (/[A-Z]/.test(password)) strength++;
-    if (/[a-z]/.test(password)) strength++;
     if (/[0-9]/.test(password)) strength++;
     if (/[^A-Za-z0-9]/.test(password)) strength++;
     return strength;
   };
 
-  const passwordStrength = checkPasswordStrength(form.password);
-  const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
-  const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-lime-500', 'bg-green-500', 'bg-emerald-500'];
-
-  const validateForm = () => {
+  const validate = () => {
     const newErrors = {};
-
-    if (!form.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Invalid email format';
-    }
-
-    if (!form.password) {
-      newErrors.password = 'Password is required';
-    } else if (form.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    } else if (passwordStrength < 2) {
-      newErrors.password = 'Password is too weak';
-    }
-
-    if (!form.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (form.password !== form.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
-    if (!agreeTerms) {
-      newErrors.terms = 'You must agree to the terms';
-    }
-
+    if (!formData.email) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Invalid email';
+    
+    if (!formData.username) newErrors.username = 'Username is required';
+    else if (formData.username.length < 3) newErrors.username = 'Username must be at least 3 characters';
+    
+    if (!formData.password) newErrors.password = 'Password is required';
+    else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
+    else if (!/[A-Z]/.test(formData.password)) newErrors.password = 'Password must contain uppercase letter';
+    else if (!/[0-9]/.test(formData.password)) newErrors.password = 'Password must contain number';
+    
+    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    
+    if (!formData.terms) newErrors.terms = 'You must accept the terms';
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validate()) return;
 
-    if (!validateForm()) return;
-
-    setLoading(true);
     try {
-      const response = await authService.register(
-        form.email,
-        form.password,
-        form.confirmPassword
-      );
+      setLoading(true);
+      const response = await authAPI.register({
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword
+      });
 
-      toast.success('Registration successful! Check your email to verify.');
-      navigate('/email-verification', { state: { email: form.email } });
+      if (response.data.success) {
+        toast.success('Registration successful! Check your email.');
+        navigate('/login');
+      }
     } catch (error) {
-      const message = error.message || 'Registration failed';
+      const message = error.response?.data?.message || 'Registration failed';
       toast.error(message);
+      setErrors({ submit: message });
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center px-4 py-8 relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute w-96 h-96 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full opacity-10 blur-3xl -top-20 -right-20"></div>
-        <div className="absolute w-96 h-96 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full opacity-10 blur-3xl -bottom-20 -left-20"></div>
-      </div>
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
+    
+    setFormData(prev => ({ ...prev, [name]: newValue }));
+    
+    if (name === 'password') {
+      setPasswordStrength(calculatePasswordStrength(value));
+    }
+    
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Logo Section */}
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center space-x-2 mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-75"></div>
-              <div className="relative w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                M
-              </div>
-            </div>
-            <span className="text-2xl font-bold text-white">MyToken</span>
-          </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
-          <p className="text-slate-400">Join thousands of crypto stakers and earn rewards</p>
+  const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+  const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+              MT
+            </span>
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">MyToken</h1>
+          <p className="text-blue-100">Join Our Staking Platform</p>
         </div>
 
-        {/* Register Card */}
-        <div className="p-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-700/50 shadow-2xl backdrop-blur-xl">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Field */}
+        {/* Form Card */}
+        <div className="bg-white rounded-xl shadow-2xl p-8 animate-fadeIn">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Account</h2>
+          <p className="text-gray-600 text-sm mb-6">Join thousands of stakers</p>
+
+          {errors.submit && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+              <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
+              <p className="text-sm text-red-800">{errors.submit}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email */}
             <div>
-              <label className="block text-slate-300 font-semibold mb-2">Email Address</label>
+              <label className="label">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-3.5 text-slate-500" size={20} />
+                <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
                 <input
                   type="email"
                   name="email"
-                  value={form.email}
+                  value={formData.email}
                   onChange={handleChange}
                   placeholder="your@email.com"
-                  className={`w-full pl-12 pr-4 py-3 bg-slate-700/50 border rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
-                    errors.email ? 'border-red-500' : 'border-slate-600 hover:border-slate-500'
-                  }`}
+                  className={`input pl-10 ${errors.email ? 'input-error' : ''}`}
                 />
               </div>
-              {errors.email && (
-                <div className="flex items-center text-red-400 text-sm mt-2">
-                  <AlertCircle size={16} className="mr-1" />
-                  {errors.email}
-                </div>
-              )}
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>
 
-            {/* Password Field */}
+            {/* Username */}
             <div>
-              <label className="block text-slate-300 font-semibold mb-2">Password</label>
+              <label className="label">Username</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-3.5 text-slate-500" size={20} />
+                <User className="absolute left-3 top-3 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  placeholder="username"
+                  className={`input pl-10 ${errors.username ? 'input-error' : ''}`}
+                />
+              </div>
+              {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="label">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   name="password"
-                  value={form.password}
+                  value={formData.password}
                   onChange={handleChange}
-                  placeholder="Create a strong password"
-                  className={`w-full pl-12 pr-12 py-3 bg-slate-700/50 border rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
-                    errors.password ? 'border-red-500' : 'border-slate-600 hover:border-slate-500'
-                  }`}
+                  placeholder="••••••••"
+                  className={`input pl-10 pr-10 ${errors.password ? 'input-error' : ''}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 transition"
+                  className="absolute right-3 top-3 text-gray-400"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-
+              
               {/* Password Strength */}
-              {form.password && (
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+              {formData.password && (
+                <div className="mt-2">
+                  <div className="flex gap-1 mb-1">
+                    {[...Array(4)].map((_, i) => (
                       <div
-                        className={`h-full transition-all duration-300 ${strengthColors[Math.min(passwordStrength, 5)]}`}
-                        style={{ width: `${(passwordStrength / 5) * 100}%` }}
-                      ></div>
-                    </div>
-                    <span className={`text-xs font-semibold ${strengthColors[Math.min(passwordStrength, 5)]}`}>
-                      {strengthLabels[Math.min(passwordStrength, 5)]}
-                    </span>
+                        key={i}
+                        className={`flex-1 h-1 rounded-full ${
+                          i < passwordStrength ? strengthColors[passwordStrength - 1] : 'bg-gray-200'
+                        }`}
+                      />
+                    ))}
                   </div>
-                  <ul className="text-xs text-slate-400 space-y-1">
-                    <li className="flex items-center">
-                      <CheckCircle size={14} className={form.password.length >= 8 ? 'text-green-500' : 'text-slate-600'} />
-                      <span className="ml-2">At least 8 characters</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle size={14} className={/[A-Z]/.test(form.password) ? 'text-green-500' : 'text-slate-600'} />
-                      <span className="ml-2">One uppercase letter</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle size={14} className={/[0-9]/.test(form.password) ? 'text-green-500' : 'text-slate-600'} />
-                      <span className="ml-2">One number</span>
-                    </li>
-                  </ul>
+                  <p className="text-xs text-gray-600">
+                    Strength: <span className="font-semibold">{strengthLabels[passwordStrength - 1] || 'Too weak'}</span>
+                  </p>
                 </div>
               )}
-
-              {errors.password && (
-                <div className="flex items-center text-red-400 text-sm mt-2">
-                  <AlertCircle size={16} className="mr-1" />
-                  {errors.password}
-                </div>
-              )}
+              
+              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
             </div>
 
-            {/* Confirm Password Field */}
+            {/* Confirm Password */}
             <div>
-              <label className="block text-slate-300 font-semibold mb-2">Confirm Password</label>
+              <label className="label">Confirm Password</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-3.5 text-slate-500" size={20} />
+                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   name="confirmPassword"
-                  value={form.confirmPassword}
+                  value={formData.confirmPassword}
                   onChange={handleChange}
-                  placeholder="Confirm your password"
-                  className={`w-full pl-12 pr-12 py-3 bg-slate-700/50 border rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
-                    errors.confirmPassword ? 'border-red-500' : 'border-slate-600 hover:border-slate-500'
-                  }`}
+                  placeholder="••••••••"
+                  className={`input pl-10 pr-10 ${errors.confirmPassword ? 'input-error' : ''}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 transition"
+                  className="absolute right-3 top-3 text-gray-400"
                 >
                   {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-              {errors.confirmPassword && (
-                <div className="flex items-center text-red-400 text-sm mt-2">
-                  <AlertCircle size={16} className="mr-1" />
-                  {errors.confirmPassword}
-                </div>
-              )}
+              {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
             </div>
 
-            {/* Terms & Conditions */}
-            <div className="flex items-start">
+            {/* Terms */}
+            <label className="flex items-start gap-3 cursor-pointer mt-4">
               <input
                 type="checkbox"
-                id="terms"
-                checked={agreeTerms}
-                onChange={(e) => {
-                  setAgreeTerms(e.target.checked);
-                  if (errors.terms) {
-                    setErrors(prev => ({ ...prev, terms: '' }));
-                  }
-                }}
-                className="w-4 h-4 mt-1 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                name="terms"
+                checked={formData.terms}
+                onChange={handleChange}
+                className="w-4 h-4 rounded border-gray-300 mt-1"
               />
-              <label htmlFor="terms" className="ml-2 text-sm text-slate-400">
-                I agree to the{' '}
-                <a href="#" className="text-blue-400 hover:text-blue-300 transition">
-                  Terms of Service
-                </a>
-                {' '}and{' '}
-                <a href="#" className="text-blue-400 hover:text-blue-300 transition">
-                  Privacy Policy
-                </a>
-              </label>
-            </div>
-            {errors.terms && (
-              <div className="flex items-center text-red-400 text-sm">
-                <AlertCircle size={16} className="mr-1" />
-                {errors.terms}
-              </div>
-            )}
+              <span className="text-sm text-gray-600">
+                I agree to the <Link to="/terms" className="text-blue-600 hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-blue-600 hover:underline">Privacy Policy</Link>
+              </span>
+            </label>
+            {errors.terms && <p className="text-red-500 text-sm">{errors.terms}</p>}
 
             {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-6 py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center space-x-2"
+              className="w-full btn btn-primary py-3 text-lg font-semibold disabled:opacity-50 mt-4"
             >
-              {loading ? (
-                <>
-                  <Loader size={20} className="animate-spin" />
-                  <span>Creating Account...</span>
-                </>
-              ) : (
-                <>
-                  <UserPlus size={20} />
-                  <span>Create Account</span>
-                </>
-              )}
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
+
+            {/* Login Link */}
+            <p className="text-center text-gray-600 text-sm">
+              Already have an account?{' '}
+              <Link to="/login" className="text-blue-600 hover:underline font-medium">
+                Sign In
+              </Link>
+            </p>
           </form>
         </div>
 
-        {/* Login Link */}
-        <div className="text-center mt-8">
-          <p className="text-slate-400">
-            Already have an account?{' '}
-            <Link to="/login" className="text-blue-400 font-semibold hover:text-blue-300 transition">
-              Sign in here
-            </Link>
-          </p>
-        </div>
-
         {/* Footer */}
-        <div className="text-center mt-6 text-xs text-slate-500">
-          <p>By registering, you agree to our Terms of Service and Privacy Policy</p>
-        </div>
+        <p className="text-center text-blue-100 text-sm mt-6">
+          🔒 Your data is secure and encrypted
+        </p>
       </div>
     </div>
   );

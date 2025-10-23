@@ -1,114 +1,131 @@
-// services/api.js - Enhanced Axios API Configuration
 import axios from 'axios';
-import Cookies from 'js-cookie';
+import { useAuthStore } from '../store';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// ============================================================================
-// AXIOS INSTANCE CONFIGURATION
-// ============================================================================
-const api = axios.create({
+const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  },
+  }
 });
 
-// ============================================================================
-// REQUEST INTERCEPTOR - Add JWT token to every request
-// ============================================================================
-api.interceptors.request.use(
+// Request Interceptor
+apiClient.interceptors.request.use(
   (config) => {
-    const token = Cookies.get('authToken');
-    
+    const token = useAuthStore.getState().token;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    // Development logging
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`📤 [${config.method.toUpperCase()}] ${config.url}`);
-    }
-    
     return config;
   },
+  (error) => Promise.reject(error)
+);
+
+// Response Interceptor
+apiClient.interceptors.response.use(
+  (response) => response,
   (error) => {
-    console.error('Request Interceptor Error:', error);
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );
 
-// ============================================================================
-// RESPONSE INTERCEPTOR - Handle responses globally
-// ============================================================================
-api.interceptors.response.use(
-  (response) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ Response [${response.status}]`, response.data);
-    }
-    return response;
-  },
-  (error) => {
-    const { response } = error;
+// ============ AUTH APIs ============
+export const authAPI = {
+  register: (data) => apiClient.post('/auth/register', data),
+  login: (email, password) => apiClient.post('/auth/login', { email, password }),
+  verifyEmail: (token) => apiClient.post('/auth/verify-email', { token }),
+  forgotPassword: (email) => apiClient.post('/auth/forgot-password', { email }),
+  resetPassword: (token, newPassword) => apiClient.post('/auth/reset-password', { 
+    token, 
+    newPassword, 
+    confirmPassword: newPassword 
+  }),
+  getCurrentUser: () => apiClient.get('/auth/me'),
+};
 
-    if (response) {
-      // Handle different HTTP status codes
-      switch (response.status) {
-        case 401:
-          // Unauthorized - Token expired or invalid
-          console.log('🔐 Unauthorized - Logging out...');
-          Cookies.remove('authToken');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
-          break;
-        
-        case 403:
-          // Forbidden - Access denied
-          console.error('⛔ Access Forbidden');
-          break;
-        
-        case 404:
-          // Not Found
-          console.error('🔍 Resource Not Found');
-          break;
-        
-        case 500:
-          // Server Error
-          console.error('🔥 Server Error');
-          break;
-        
-        default:
-          console.error(`API Error [${response.status}]:`, response.data?.message);
-      }
-    } else if (error.request) {
-      console.error('❌ No response received:', error.message);
-    } else {
-      console.error('❌ Request Error:', error.message);
-    }
-    
-    return Promise.reject(error);
-  }
-);
+// ============ USER APIs ============
+export const userAPI = {
+  getProfile: () => apiClient.get('/user/profile'),
+  updateProfile: (data) => apiClient.put('/user/profile', data),
+  updateSettings: (settings) => apiClient.put('/user/settings', settings),
+  connectWallet: (walletAddress) => apiClient.post('/user/connect-wallet', { walletAddress }),
+  disconnectWallet: () => apiClient.post('/user/disconnect-wallet'),
+  getStats: () => apiClient.get('/user/stats'),
+  getLoginHistory: (page = 1, limit = 10) => apiClient.get('/user/login-history', { params: { page, limit } }),
+  getTransactions: (page = 1, limit = 10, type, status) => apiClient.get('/user/transactions', { params: { page, limit, type, status } }),
+  changePassword: (data) => apiClient.post('/user/change-password', data),
+  exportData: () => apiClient.get('/user/export-data'),
+  deleteAccount: (data) => apiClient.post('/user/delete-account', data),
+};
 
-// ============================================================================
-// API CALL HELPER FUNCTIONS
-// ============================================================================
+// ============ STAKING APIs ============
+export const stakingAPI = {
+  getStakingInfo: (walletAddress) => apiClient.get(`/staking/info/${walletAddress}`),
+  recordStake: (data) => apiClient.post('/staking/record-stake', data),
+  recordUnstake: (data) => apiClient.post('/staking/record-unstake', data),
+  recordClaim: (data) => apiClient.post('/staking/record-claim', data),
+  getHistory: () => apiClient.get('/staking/history'),
+  getStats: () => apiClient.get('/staking/stats'),
+  syncWithBlockchain: () => apiClient.post('/staking/sync'),
+};
 
-export const apiGet = (url, config = {}) => api.get(url, config);
-export const apiPost = (url, data = {}, config = {}) => api.post(url, data, config);
-export const apiPut = (url, data = {}, config = {}) => api.put(url, data, config);
-export const apiPatch = (url, data = {}, config = {}) => api.patch(url, data, config);
-export const apiDelete = (url, config = {}) => api.delete(url, config);
+// ============ TRANSACTION APIs ============
+export const transactionAPI = {
+  getAllTransactions: (page = 1, limit = 20, type, status) => 
+    apiClient.get('/transactions', { params: { page, limit, type, status } }),
+  getTransactionByHash: (txHash) => apiClient.get(`/transactions/${txHash}`),
+  recordTransaction: (data) => apiClient.post('/transactions/record', data),
+  updateTransactionStatus: (txHash, data) => apiClient.put(`/transactions/${txHash}/status`, data),
+  getStats: () => apiClient.get('/transactions/stats/overview'),
+  getByType: (type, page = 1, limit = 20) => apiClient.get(`/transactions/filter/by-type/${type}`, { params: { page, limit } }),
+  getByStatus: (status, page = 1, limit = 20) => apiClient.get(`/transactions/filter/by-status/${status}`, { params: { page, limit } }),
+  retryTransaction: (txHash) => apiClient.post(`/transactions/${txHash}/retry`),
+  exportCSV: () => apiClient.get('/transactions/export/csv'),
+};
 
-// ============================================================================
-// AUTHENTICATION HELPERS
-// ============================================================================
+// ============ ADMIN APIs ============
+export const adminAPI = {
+  // User Management
+  getAllUsers: (page = 1, limit = 20, role, isActive, isBanned, search) => 
+    apiClient.get('/admin/users', { params: { page, limit, role, isActive, isBanned, search } }),
+  
+  getUserDetails: (userId) => apiClient.get(`/admin/users/${userId}`),
+  
+  banUser: (userId, data) => apiClient.put(`/admin/users/${userId}/ban`, data),
+  
+  changeUserRole: (userId, data) => apiClient.put(`/admin/users/${userId}/role`, data),
+  
+  resetUserPassword: (userId, newPassword) => apiClient.post(`/admin/users/${userId}/reset-password`, { newPassword }),
+  
+  verifyUserEmail: (userId, isVerified) => apiClient.put(`/admin/users/${userId}/verify-email`, { isVerified }),
+  
+  // Transaction Management
+  getAllTransactions: (page = 1, limit = 20, type, status, userId) => 
+    apiClient.get('/admin/transactions', { params: { page, limit, type, status, userId } }),
+  
+  // Statistics
+  getSystemStats: () => apiClient.get('/admin/stats/system'),
+  
+  getUserStats: () => apiClient.get('/admin/stats/users'),
+  
+  getTransactionStats: () => apiClient.get('/admin/stats/transactions'),
+  
+  // Reports
+  exportSystemReport: () => apiClient.get('/admin/export/report'),
+};
 
-export const isAuthenticated = () => !!Cookies.get('authToken');
-export const getToken = () => Cookies.get('authToken');
-export const saveToken = (token, expiresIn = 7) => Cookies.set('authToken', token, { expires: expiresIn });
-export const removeToken = () => Cookies.remove('authToken');
+// ============ 2FA APIs ============
+export const twoFAAPI = {
+  setup: () => apiClient.post('/2fa/setup'),
+  verifySetup: (token, backupCodes) => apiClient.post('/2fa/verify-setup', { token, backupCodes }),
+  verifyToken: (token) => apiClient.post('/2fa/verify-token', { token }),
+  disable: (password) => apiClient.post('/2fa/disable', { password }),
+  getBackupCodes: () => apiClient.get('/2fa/backup-codes'),
+};
 
-export default api;
+export default apiClient;
