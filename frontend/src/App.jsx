@@ -15,6 +15,13 @@ import Register from './pages/Register';
 
 // Pages - User Panel
 import UserDashboard from './pages/User/Dashboard';
+import UserStaking from './pages/User/Staking';
+import UserHistory from './pages/User/History';
+import UserWallet from './pages/User/Wallet';
+import UserAnalytics from './pages/User/Analytics';
+import UserSettings from './pages/User/Settings';
+import UserSecurity from './pages/User/Security';
+import UserProfile from './pages/User/Profile';
 
 // Pages - Admin Panel
 import AdminDashboard from './pages/Admin/Dashboard';
@@ -49,13 +56,13 @@ export default function App() {
           }
         >
           <Route path="/dashboard" element={<UserDashboard />} />
-          <Route path="/staking" element={<div className="p-8">Staking Page Coming Soon</div>} />
-          <Route path="/history" element={<div className="p-8">History Page Coming Soon</div>} />
-          <Route path="/wallet" element={<div className="p-8">Wallet Page Coming Soon</div>} />
-          <Route path="/analytics" element={<div className="p-8">Analytics Page Coming Soon</div>} />
-          <Route path="/settings" element={<div className="p-8">Settings Page Coming Soon</div>} />
-          <Route path="/security" element={<div className="p-8">Security Page Coming Soon</div>} />
-          <Route path="/profile" element={<div className="p-8">Profile Page Coming Soon</div>} />
+          <Route path="/staking" element={<UserStaking />} />
+          <Route path="/history" element={<UserHistory />} />
+          <Route path="/wallet" element={<UserWallet />} />
+          <Route path="/analytics" element={<UserAnalytics />} />
+          <Route path="/settings" element={<UserSettings />} />
+          <Route path="/security" element={<UserSecurity />} />
+          <Route path="/profile" element={<UserProfile />} />
         </Route>
 
         {/* ========== ADMIN ROUTES ========== */}
