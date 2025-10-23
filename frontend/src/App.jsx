@@ -25,6 +25,12 @@ import UserProfile from './pages/User/Profile';
 
 // Pages - Admin Panel
 import AdminDashboard from './pages/Admin/Dashboard';
+import AdminUsers from './pages/Admin/AdminUsers';
+import AdminTransactions from './pages/Admin/AdminTransactions';
+import AdminAnalytics from './pages/Admin/AdminAnalytics';
+import AdminReports from './pages/Admin/AdminReports';
+import AdminSettings from './pages/Admin/AdminSettings';
+import AdminSecurity from './pages/Admin/AdminSecurity';
 
 export default function App() {
   const { token, user } = useAuthStore();
@@ -74,12 +80,12 @@ export default function App() {
           }
         >
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<div className="p-8 text-white">Users Management Coming Soon</div>} />
-          <Route path="/admin/transactions" element={<div className="p-8 text-white">Transactions Management Coming Soon</div>} />
-          <Route path="/admin/analytics" element={<div className="p-8 text-white">Analytics Coming Soon</div>} />
-          <Route path="/admin/reports" element={<div className="p-8 text-white">Reports Coming Soon</div>} />
-          <Route path="/admin/settings" element={<div className="p-8 text-white">Settings Coming Soon</div>} />
-          <Route path="/admin/security" element={<div className="p-8 text-white">Security Coming Soon</div>} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/transactions" element={<AdminTransactions />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/reports" element={<AdminReports />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/security" element={<AdminSecurity />} />
         </Route>
 
         {/* ========== FALLBACK ROUTES ========== */}
