@@ -1,205 +1,269 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { authAPI } from '../services/api';
-import { useAuthStore } from '../store';
+import axios from 'axios';
+import '../pages/AuthPages.css'; // Optional styling
 
-export default function Login() {
-  const navigate = useNavigate();
-  const { login } = useAuthStore();
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+const Login = () => {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    walletAddress: ''
+  });
+
   const [errors, setErrors] = useState({});
-  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [walletConnected, setWalletConnected] = useState(false);
 
-  const validate = () => {
-    const newErrors = {};
-    if (!formData.email) newErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Invalid email';
-    if (!formData.password) newErrors.password = 'Password is required';
-    else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  // Handle input changes
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error for this field
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
+  // Connect Metamask Wallet
+  const connectWallet = async () => {
+    try {
+      // Check if MetaMask is installed
+      if (!window.ethereum) {
+        setErrors({ wallet: 'MetaMask not installed. Please install MetaMask!' });
+        return;
+      }
+
+      // Request account access
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
+      });
+
+      if (accounts && accounts[0]) {
+        const walletAddress = accounts[0];
+        setFormData(prev => ({
+          ...prev,
+          walletAddress: walletAddress
+        }));
+        setWalletConnected(true);
+        setMessage('✅ Wallet connected successfully!');
+        setErrors({});
+      }
+    } catch (error) {
+      console.error('Wallet connection error:', error);
+      setErrors({ wallet: 'Failed to connect wallet. Please try again.' });
+    }
+  };
+
+  // Validate form
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Email validation
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Invalid email format';
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    }
+
+    // Wallet address validation
+    if (!formData.walletAddress) {
+      newErrors.walletAddress = 'Wallet address is required. Please connect your wallet!';
+    } else if (!/^0x[a-fA-F0-9]{40}$/.test(formData.walletAddress)) {
+      newErrors.walletAddress = 'Invalid wallet address format';
+    }
+
+    return newErrors;
+  };
+
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+
+    // Validate
+    const newErrors = validateForm();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
 
     try {
-      setLoading(true);
-      const response = await authAPI.login(formData.email, formData.password);
-      
-      if (response.data.success) {
-        login(response.data.user, response.data.token, response.data.user.role);
-        
-        if (rememberMe) {
-          localStorage.setItem('rememberEmail', formData.email);
+      const response = await axios.post(
+        'http://localhost:5000/api/auth/login',
+        {
+          email: formData.email,
+          password: formData.password,
+          walletAddress: formData.walletAddress
         }
+      );
 
-        toast.success('Login successful!');
-        
-        // Navigate based on role
-        if (response.data.user.role === 'admin') {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/dashboard');
+      if (response.data.success) {
+        // Check if 2FA is required
+        if (response.data.requires2FA) {
+          setMessage('⚠️ 2FA verification required');
+          // Store temp token for 2FA page
+          localStorage.setItem('tempToken', response.data.tempToken);
+          setTimeout(() => {
+            window.location.href = '/verify-2fa';
+          }, 1500);
+        }
+        // Check if email verification is required
+        else if (response.data.requiresEmailVerification) {
+          setMessage('❌ Please verify your email first');
+          setTimeout(() => {
+            window.location.href = '/verify-email';
+          }, 1500);
+        }
+        // Check if wallet connection required
+        else if (response.data.requiresWallet) {
+          setMessage('❌ Please connect your wallet to continue');
+        }
+        // Successful login
+        else {
+          // Store JWT token
+          localStorage.setItem('token', response.data.token);
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          setMessage('✅ Login successful! Redirecting...');
+          
+          // Redirect to dashboard
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 1500);
         }
       }
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
-      toast.error(message);
-      setErrors({ submit: message });
+      console.error('Login error:', error);
+      
+      if (error.response?.data?.message) {
+        setMessage(`❌ ${error.response.data.message}`);
+      } else {
+        setMessage('❌ Login failed. Please try again.');
+      }
+
+      // Handle specific error cases
+      if (error.response?.status === 403) {
+        if (error.response?.data?.requiresEmailVerification) {
+          setMessage('❌ Please verify your email first');
+        } else if (error.response?.data?.requiresWallet) {
+          setMessage('❌ Please connect your wallet');
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-              MT
-            </span>
+    <div className="login-container">
+      <div className="login-box">
+        <h1>🔐 Login</h1>
+
+        {message && (
+          <div className={`message ${message.includes('✅') ? 'success' : 'error'}`}>
+            {message}
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">MyToken</h1>
-          <p className="text-blue-100">Blockchain Staking Platform</p>
-        </div>
+        )}
 
-        {/* Form Card */}
-        <div className="bg-white rounded-xl shadow-2xl p-8 animate-fadeIn">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h2>
-          <p className="text-gray-600 text-sm mb-6">Sign in to your account</p>
+        <form onSubmit={handleSubmit}>
+          {/* Email Field */}
+          <div className="form-group">
+            <label htmlFor="email">Email Address:</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Enter your email"
+              className={errors.email ? 'input-error' : ''}
+            />
+            {errors.email && <span className="error-message">{errors.email}</span>}
+          </div>
 
-          {/* Error Alert */}
-          {errors.submit && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-              <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-              <p className="text-sm text-red-800">{errors.submit}</p>
+          {/* Password Field */}
+          <div className="form-group">
+            <label htmlFor="password">Password:</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Enter your password"
+              className={errors.password ? 'input-error' : ''}
+            />
+            {errors.password && <span className="error-message">{errors.password}</span>}
+          </div>
+
+          {/* Wallet Address Field */}
+          <div className="form-group">
+            <label htmlFor="walletAddress">
+              🔗 Wallet Address:
+              {walletConnected && <span className="connected-badge">✅ Connected</span>}
+            </label>
+            <div className="wallet-input-group">
+              <input
+                type="text"
+                id="walletAddress"
+                name="walletAddress"
+                value={formData.walletAddress}
+                onChange={handleChange}
+                placeholder="0x... (Click Connect Wallet)"
+                readOnly
+                className={`wallet-input ${errors.walletAddress ? 'input-error' : ''}`}
+              />
+              <button
+                type="button"
+                onClick={connectWallet}
+                className={`connect-wallet-btn ${walletConnected ? 'connected' : ''}`}
+              >
+                {walletConnected ? '✅ Connected' : '🦊 Connect Wallet'}
+              </button>
             </div>
-          )}
+            {errors.walletAddress && (
+              <span className="error-message">{errors.walletAddress}</span>
+            )}
+            <small className="hint">
+              Click "Connect Wallet" to connect your MetaMask wallet
+            </small>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Input */}
-            <div>
-              <label className="label">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="admin@mytoken.com"
-                  className={`input pl-10 ${errors.email ? 'input-error' : ''}`}
-                />
-              </div>
-              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-            </div>
+          {/* Submit Button */}
+          <button
+            type="submit"
+            className="submit-btn"
+            disabled={loading}
+          >
+            {loading ? '⏳ Logging in...' : '✅ Login'}
+          </button>
+        </form>
 
-            {/* Password Input */}
-            <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  className={`input pl-10 pr-10 ${errors.password ? 'input-error' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
-            </div>
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300" 
-                />
-                <span className="text-gray-600">Remember me</span>
-              </label>
-              <Link to="/forgot-password" className="text-blue-600 hover:text-blue-700 font-medium">
-                Forgot password?
-              </Link>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full btn btn-primary py-3 text-lg font-semibold disabled:opacity-50"
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Signing in...
-                </span>
-              ) : (
-                'Sign In'
-              )}
-            </button>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Don't have an account?</span>
-              </div>
-            </div>
-
-            {/* Sign Up Link */}
-            <Link
-              to="/register"
-              className="w-full btn btn-ghost py-3 text-lg font-semibold text-center"
-            >
-              Create Account
-            </Link>
-          </form>
-
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-xs font-semibold text-blue-900 mb-2">📝 Demo Credentials</p>
-            <div className="space-y-1 text-xs text-blue-800">
-              <p><span className="font-mono bg-white px-2 py-1 rounded">Admin:</span> admin@mytoken.com / Admin@123456</p>
-              <p><span className="font-mono bg-white px-2 py-1 rounded">User:</span> test@example.com / Test@123456</p>
-            </div>
+        {/* Links */}
+        <div className="footer-links">
+          <div>
+            <a href="/forgot-password">🔄 Forgot Password?</a>
+          </div>
+          <div>
+            Don't have an account? <a href="/register">Register here</a>
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-blue-100 text-sm mt-6">
-          🔒 Protected by enterprise-grade security
-        </p>
       </div>
     </div>
   );
-}
+};
+
+export default Login;

@@ -1,131 +1,314 @@
+// src/services/api.js - Complete API Configuration with JWT
+
 import axios from 'axios';
-import { useAuthStore } from '../store';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
-const apiClient = axios.create({
+// ============================================
+// CREATE AXIOS INSTANCE
+// ============================================
+
+const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 10000,
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   }
 });
 
-// Request Interceptor
-apiClient.interceptors.request.use(
+// ============================================
+// REQUEST INTERCEPTOR - ADD JWT TOKEN
+// ============================================
+
+axiosInstance.interceptors.request.use(
   (config) => {
-    const token = useAuthStore.getState().token;
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+
+    // ✅ Add token to Authorization header
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('✅ JWT Token added to request:', config.url);
+    } else {
+      console.warn('⚠️ No JWT token found in localStorage');
     }
+
     return config;
   },
-  (error) => Promise.reject(error)
-);
-
-// Response Interceptor
-apiClient.interceptors.response.use(
-  (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
-    }
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
-// ============ AUTH APIs ============
+// ============================================
+// RESPONSE INTERCEPTOR - HANDLE ERRORS
+// ============================================
+
+axiosInstance.interceptors.response.use(
+  (response) => {
+    console.log('✅ API Response Success:', response.status, response.config.url);
+    return response;
+  },
+  (error) => {
+    console.error('❌ API Response Error:', error.response?.status, error.message);
+
+    // Handle 401 - Token expired
+    if (error.response?.status === 401) {
+      console.error('🔴 Token expired (401)');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+
+    // Handle 403 - Forbidden (no permission)
+    if (error.response?.status === 403) {
+      console.error('🔴 Access forbidden (403)');
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// ============================================
+// AUTHENTICATION API
+// ============================================
+
 export const authAPI = {
-  register: (data) => apiClient.post('/auth/register', data),
-  login: (email, password) => apiClient.post('/auth/login', { email, password }),
-  verifyEmail: (token) => apiClient.post('/auth/verify-email', { token }),
-  forgotPassword: (email) => apiClient.post('/auth/forgot-password', { email }),
-  resetPassword: (token, newPassword) => apiClient.post('/auth/reset-password', { 
-    token, 
-    newPassword, 
-    confirmPassword: newPassword 
-  }),
-  getCurrentUser: () => apiClient.get('/auth/me'),
+  register: (data) =>
+    axiosInstance.post('/auth/register', data),
+
+  login: (data) =>
+    axiosInstance.post('/auth/login', data),
+
+  verifyEmail: (token) =>
+    axiosInstance.post('/auth/verify-email', { token }),
+
+  logout: () =>
+    axiosInstance.post('/auth/logout'),
+
+  forgotPassword: (email) =>
+    axiosInstance.post('/auth/forgot-password', { email }),
+
+  resetPassword: (token, password, confirmPassword) =>
+    axiosInstance.post('/auth/reset-password', {
+      token,
+      newPassword: password,
+      confirmPassword
+    }),
+
+  getCurrentUser: () =>
+    axiosInstance.get('/auth/me'),
+
+  checkVerification: (email) =>
+    axiosInstance.get(`/auth/check-verification/${email}`)
 };
 
-// ============ USER APIs ============
+// ============================================
+// USER API
+// ============================================
+
 export const userAPI = {
-  getProfile: () => apiClient.get('/user/profile'),
-  updateProfile: (data) => apiClient.put('/user/profile', data),
-  updateSettings: (settings) => apiClient.put('/user/settings', settings),
-  connectWallet: (walletAddress) => apiClient.post('/user/connect-wallet', { walletAddress }),
-  disconnectWallet: () => apiClient.post('/user/disconnect-wallet'),
-  getStats: () => apiClient.get('/user/stats'),
-  getLoginHistory: (page = 1, limit = 10) => apiClient.get('/user/login-history', { params: { page, limit } }),
-  getTransactions: (page = 1, limit = 10, type, status) => apiClient.get('/user/transactions', { params: { page, limit, type, status } }),
-  changePassword: (data) => apiClient.post('/user/change-password', data),
-  exportData: () => apiClient.get('/user/export-data'),
-  deleteAccount: (data) => apiClient.post('/user/delete-account', data),
+  getProfile: () =>
+    axiosInstance.get('/user/profile'),
+
+  updateProfile: (data) =>
+    axiosInstance.put('/user/profile', data),
+
+  updateSettings: (data) =>
+    axiosInstance.put('/user/settings', data),
+
+  connectWallet: (walletAddress) =>
+    axiosInstance.post('/user/connect-wallet', { walletAddress }),
+
+  disconnectWallet: () =>
+    axiosInstance.post('/user/disconnect-wallet'),
+
+  getStats: () =>
+    axiosInstance.get('/user/stats'),
+
+  getLoginHistory: () =>
+    axiosInstance.get('/user/login-history'),
+
+  getTransactions: (params) =>
+    axiosInstance.get('/user/transactions', { params }),
+
+  changePassword: (oldPassword, newPassword) =>
+    axiosInstance.post('/user/change-password', {
+      oldPassword,
+      newPassword
+    }),
+
+  deleteAccount: (password) =>
+    axiosInstance.post('/user/delete-account', { password })
 };
 
-// ============ STAKING APIs ============
-export const stakingAPI = {
-  getStakingInfo: (walletAddress) => apiClient.get(`/staking/info/${walletAddress}`),
-  recordStake: (data) => apiClient.post('/staking/record-stake', data),
-  recordUnstake: (data) => apiClient.post('/staking/record-unstake', data),
-  recordClaim: (data) => apiClient.post('/staking/record-claim', data),
-  getHistory: () => apiClient.get('/staking/history'),
-  getStats: () => apiClient.get('/staking/stats'),
-  syncWithBlockchain: () => apiClient.post('/staking/sync'),
-};
+// ============================================
+// ADMIN API
+// ============================================
 
-// ============ TRANSACTION APIs ============
-export const transactionAPI = {
-  getAllTransactions: (page = 1, limit = 20, type, status) => 
-    apiClient.get('/transactions', { params: { page, limit, type, status } }),
-  getTransactionByHash: (txHash) => apiClient.get(`/transactions/${txHash}`),
-  recordTransaction: (data) => apiClient.post('/transactions/record', data),
-  updateTransactionStatus: (txHash, data) => apiClient.put(`/transactions/${txHash}/status`, data),
-  getStats: () => apiClient.get('/transactions/stats/overview'),
-  getByType: (type, page = 1, limit = 20) => apiClient.get(`/transactions/filter/by-type/${type}`, { params: { page, limit } }),
-  getByStatus: (status, page = 1, limit = 20) => apiClient.get(`/transactions/filter/by-status/${status}`, { params: { page, limit } }),
-  retryTransaction: (txHash) => apiClient.post(`/transactions/${txHash}/retry`),
-  exportCSV: () => apiClient.get('/transactions/export/csv'),
-};
-
-// ============ ADMIN APIs ============
 export const adminAPI = {
-  // User Management
-  getAllUsers: (page = 1, limit = 20, role, isActive, isBanned, search) => 
-    apiClient.get('/admin/users', { params: { page, limit, role, isActive, isBanned, search } }),
-  
-  getUserDetails: (userId) => apiClient.get(`/admin/users/${userId}`),
-  
-  banUser: (userId, data) => apiClient.put(`/admin/users/${userId}/ban`, data),
-  
-  changeUserRole: (userId, data) => apiClient.put(`/admin/users/${userId}/role`, data),
-  
-  resetUserPassword: (userId, newPassword) => apiClient.post(`/admin/users/${userId}/reset-password`, { newPassword }),
-  
-  verifyUserEmail: (userId, isVerified) => apiClient.put(`/admin/users/${userId}/verify-email`, { isVerified }),
-  
-  // Transaction Management
-  getAllTransactions: (page = 1, limit = 20, type, status, userId) => 
-    apiClient.get('/admin/transactions', { params: { page, limit, type, status, userId } }),
-  
+  // ✅ SYSTEM STATS - FIX FOR 403 ERROR
+  getSystemStats: () => {
+    console.log('📊 Fetching system stats...');
+    return axiosInstance.get('/admin/stats/system');
+  },
+
+  // Users Management
+  getUsers: (params = {}) => {
+    console.log('👥 Fetching users...');
+    return axiosInstance.get('/admin/users', { params });
+  },
+
+  getUserById: (userId) =>
+    axiosInstance.get(`/admin/users/${userId}`),
+
+  banUser: (userId, reason) =>
+    axiosInstance.put(`/admin/users/${userId}/ban`, { reason }),
+
+  unbanUser: (userId) =>
+    axiosInstance.put(`/admin/users/${userId}/unban`),
+
+  updateUserRole: (userId, role) =>
+    axiosInstance.put(`/admin/users/${userId}/role`, { role }),
+
+  // Transactions Management
+  getTransactions: (params = {}) => {
+    console.log('💳 Fetching transactions...');
+    return axiosInstance.get('/admin/transactions', { params });
+  },
+
+  getTransactionById: (txHash) =>
+    axiosInstance.get(`/admin/transactions/${txHash}`),
+
+  updateTransactionStatus: (txHash, status) =>
+    axiosInstance.put(`/admin/transactions/${txHash}/status`, { status }),
+
   // Statistics
-  getSystemStats: () => apiClient.get('/admin/stats/system'),
-  
-  getUserStats: () => apiClient.get('/admin/stats/users'),
-  
-  getTransactionStats: () => apiClient.get('/admin/stats/transactions'),
-  
-  // Reports
-  exportSystemReport: () => apiClient.get('/admin/export/report'),
+  getUserStats: () => {
+    console.log('📊 Fetching user stats...');
+    return axiosInstance.get('/admin/stats/users');
+  },
+
+  getTransactionStats: () => {
+    console.log('📊 Fetching transaction stats...');
+    return axiosInstance.get('/admin/stats/transactions');
+  },
+
+  // ✅ THIS IS IMPORTANT - Add proper error handling
+  getAdminDashboardStats: async () => {
+    try {
+      console.log('🔄 Fetching admin dashboard stats...');
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        throw new Error('No JWT token found');
+      }
+
+      const response = await axiosInstance.get('/admin/stats/system', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('✅ Admin dashboard stats fetched successfully');
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching admin dashboard stats:', error);
+      if (error.response?.status === 403) {
+        console.error('🔴 Permission denied - Check JWT token and user role');
+      }
+      throw error;
+    }
+  }
 };
 
-// ============ 2FA APIs ============
+// ============================================
+// STAKING API
+// ============================================
+
+export const stakingAPI = {
+  getStakingInfo: (walletAddress) =>
+    axiosInstance.get(`/staking/info/${walletAddress}`),
+
+  recordStake: (data) =>
+    axiosInstance.post('/staking/record-stake', data),
+
+  recordUnstake: (data) =>
+    axiosInstance.post('/staking/record-unstake', data),
+
+  recordClaim: (data) =>
+    axiosInstance.post('/staking/record-claim', data),
+
+  getHistory: (params) =>
+    axiosInstance.get('/staking/history', { params }),
+
+  getStats: () =>
+    axiosInstance.get('/staking/stats'),
+
+  sync: () =>
+    axiosInstance.post('/staking/sync')
+};
+
+// ============================================
+// TRANSACTION API
+// ============================================
+
+export const transactionAPI = {
+  getTransactions: (params) =>
+    axiosInstance.get('/transactions', { params }),
+
+  getTransactionById: (txHash) =>
+    axiosInstance.get(`/transactions/${txHash}`),
+
+  recordTransaction: (data) =>
+    axiosInstance.post('/transactions/record', data),
+
+  updateStatus: (txHash, status) =>
+    axiosInstance.put(`/transactions/${txHash}/status`, { status }),
+
+  getStats: () =>
+    axiosInstance.get('/transactions/stats/overview'),
+
+  filterByType: (type, params) =>
+    axiosInstance.get(`/transactions/filter/by-type/${type}`, { params }),
+
+  filterByStatus: (status, params) =>
+    axiosInstance.get(`/transactions/filter/by-status/${status}`, { params }),
+
+  retry: (txHash) =>
+    axiosInstance.post(`/transactions/${txHash}/retry`),
+
+  exportCSV: () =>
+    axiosInstance.get('/transactions/export/csv')
+};
+
+// ============================================
+// 2FA API
+// ============================================
+
 export const twoFAAPI = {
-  setup: () => apiClient.post('/2fa/setup'),
-  verifySetup: (token, backupCodes) => apiClient.post('/2fa/verify-setup', { token, backupCodes }),
-  verifyToken: (token) => apiClient.post('/2fa/verify-token', { token }),
-  disable: (password) => apiClient.post('/2fa/disable', { password }),
-  getBackupCodes: () => apiClient.get('/2fa/backup-codes'),
+  setup: () =>
+    axiosInstance.post('/2fa/setup'),
+
+  verifySetup: (token) =>
+    axiosInstance.post('/2fa/verify-setup', { token }),
+
+  verifyToken: (token) =>
+    axiosInstance.post('/2fa/verify-token', { token }),
+
+  disable: (token) =>
+    axiosInstance.post('/2fa/disable', { token }),
+
+  getBackupCodes: () =>
+    axiosInstance.get('/2fa/backup-codes'),
+
+  regenerateBackupCodes: (token) =>
+    axiosInstance.post('/2fa/regenerate-backup-codes', { token })
 };
 
-export default apiClient;
+// ============================================
+// EXPORT DEFAULT INSTANCE
+// ============================================
+
+export default axiosInstance;

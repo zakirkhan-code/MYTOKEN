@@ -1,8 +1,8 @@
+// src/pages/AdminDashboard.jsx - FIXED VERSION
 import React, { useEffect, useState } from 'react';
 import { Users, CreditCard, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useAdminStore, useUIStore } from '../../store';
-import { useRealtimePolling } from '../../hooks/useRealtimePolling';
 import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
@@ -10,48 +10,148 @@ export default function AdminDashboard() {
   const { isRealtimeConnected } = useUIStore();
   const [stats_local, setLocalStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Enable real-time polling for admin
-  const { refreshAdminStats, refreshAll } = useRealtimePolling({
-    adminInterval: 5000,
-    enabled: true
-  });
+  // ============================================
+  // FETCH STATS ON MOUNT
+  // ============================================
 
   useEffect(() => {
-    fetchSystemStats();
+    const initializeDashboard = async () => {
+      // Check if user is authenticated
+      const token = localStorage.getItem('token');
+      const user = localStorage.getItem('user');
+
+      if (!token || !user) {
+        setError('Not authenticated. Please login first.');
+        setLoading(false);
+        window.location.href = '/login';
+        return;
+      }
+
+      console.log('🔐 User authenticated. Fetching admin dashboard stats...');
+      await fetchSystemStats();
+    };
+
+    initializeDashboard();
+
+    // Refresh stats every 10 seconds
+    const interval = setInterval(fetchSystemStats, 10000);
+    return () => clearInterval(interval);
   }, []);
+
+  // ============================================
+  // FETCH SYSTEM STATS
+  // ============================================
 
   const fetchSystemStats = async () => {
     try {
+      console.log('📊 Fetching system stats...');
       setLoading(true);
+      setError(null);
+
+      // ✅ FIX: Get fresh token before request
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No JWT token found');
+      }
+
+      console.log('🔑 Using JWT token:', token.substring(0, 20) + '...');
+
+      // Call admin API
       const response = await adminAPI.getSystemStats();
+
       if (response.data.success) {
+        console.log('✅ Stats fetched successfully:', response.data.stats);
         setLocalStats(response.data.stats);
         setStats(response.data.stats);
+        setError(null);
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch stats');
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('❌ Error fetching stats:', error);
+      console.error('Response status:', error.response?.status);
+      console.error('Response data:', error.response?.data);
+
+      // Handle specific errors
+      if (error.response?.status === 401) {
+        setError('Authentication failed. Please login again.');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else if (error.response?.status === 403) {
+        setError('Access denied. You do not have admin permissions.');
+        console.error('🔴 403 Forbidden - Check user role is "admin"');
+      } else {
+        setError(error.message || 'Failed to load admin dashboard');
+      }
+
       toast.error('Failed to load admin dashboard');
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================
+  // MANUAL REFRESH
+  // ============================================
+
   const handleManualRefresh = async () => {
     toast.loading('Refreshing admin dashboard...');
-    await refreshAll();
+    await fetchSystemStats();
     toast.dismiss();
+    toast.success('Dashboard refreshed!');
   };
+
+  // ============================================
+  // DISPLAY STATS
+  // ============================================
 
   const displayStats = stats_local || stats;
 
-  if (loading) {
+  // ============================================
+  // LOADING STATE
+  // ============================================
+
+  if (loading && !displayStats) {
     return (
-      <div className="p-8 flex items-center justify-center h-full">
-        <div className="spinner w-12 h-12"></div>
+      <div className="p-8 flex items-center justify-center h-full min-h-screen">
+        <div className="text-center">
+          <div className="spinner w-12 h-12 mx-auto mb-4"></div>
+          <p className="text-slate-300">Loading admin dashboard...</p>
+        </div>
       </div>
     );
   }
+
+  // ============================================
+  // ERROR STATE
+  // ============================================
+
+  if (error && !displayStats) {
+    return (
+      <div className="p-8 flex items-center justify-center h-full min-h-screen">
+        <div className="text-center">
+          <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Error Loading Dashboard</h2>
+          <p className="text-slate-400 mb-4">{error}</p>
+          <button
+            onClick={handleManualRefresh}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
 
   return (
     <div className="p-8 space-y-8 animate-fadeIn">
@@ -67,7 +167,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-2 px-4 py-2 bg-green-900 rounded-lg border border-green-700">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm text-green-300 font-medium">
-              {isRealtimeConnected ? '🟢 Live' : '🔴 Polling'}
+              {isRealtimeConnected ? '🟢 Live' : '🔄 Polling'}
             </span>
           </div>
 
@@ -86,6 +186,13 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 bg-red-900 border border-red-700 rounded-lg text-red-300">
+          ⚠️ {error}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

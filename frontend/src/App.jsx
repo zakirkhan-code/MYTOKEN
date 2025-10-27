@@ -24,7 +24,7 @@ import UserSecurity from './pages/User/Security';
 import UserProfile from './pages/User/Profile';
 
 // Pages - Admin Panel
-import AdminDashboard from './pages/Admin/Dashboard';
+import AdminDashboard from './pages/Admin/AdminDashboard';
 import AdminUsers from './pages/Admin/AdminUsers';
 import AdminTransactions from './pages/Admin/AdminTransactions';
 import AdminAnalytics from './pages/Admin/AdminAnalytics';
