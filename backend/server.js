@@ -1,12 +1,28 @@
-// server.js - Main Backend Server (SIMPLE & WORKING)
+// server.js - Main Backend Server (WITH WEBSOCKET)
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const http = require('http');
+const socketIO = require('socket.io');
 require('dotenv').config();
 
 const app = express();
+
+// ============================================
+// CREATE HTTP SERVER WITH SOCKET.IO ✅
+// ============================================
+
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
+});
 
 // ============================================
 // MIDDLEWARE
@@ -45,6 +61,95 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/mytoken',
   });
 
 // ============================================
+// SOCKET.IO CONNECTION HANDLING ✅
+// ============================================
+
+const connectedUsers = new Map();
+
+io.on('connection', (socket) => {
+  console.log(`🔌 New WebSocket connection: ${socket.id}`);
+
+  // Store user connection
+  socket.on('user-connect', (userId) => {
+    connectedUsers.set(userId, socket.id);
+    console.log(`👤 User ${userId} connected via socket ${socket.id}`);
+
+    io.emit('user-online', {
+      userId,
+      socketId: socket.id,
+      timestamp: new Date()
+    });
+  });
+
+  // Handle transaction updates
+  socket.on('transaction-update', (data) => {
+    console.log(`📊 Transaction update: ${data.txHash}`);
+
+    io.emit('transaction-status', {
+      txHash: data.txHash,
+      status: data.status,
+      userId: data.userId,
+      timestamp: new Date()
+    });
+  });
+
+  // Handle staking updates
+  socket.on('staking-update', (data) => {
+    console.log(`💰 Staking update from user ${data.userId}`);
+
+    io.emit('staking-status', {
+      userId: data.userId,
+      type: data.type,
+      amount: data.amount,
+      status: data.status,
+      timestamp: new Date()
+    });
+  });
+
+  // Handle email verification notification
+  socket.on('email-verified', (data) => {
+    console.log(`✉️ Email verified for user ${data.userId}`);
+
+    socket.emit('verification-confirmed', {
+      success: true,
+      message: 'Email verification confirmed'
+    });
+  });
+
+  // Handle wallet connection
+  socket.on('wallet-connected', (data) => {
+    console.log(`🔗 Wallet connected: ${data.walletAddress}`);
+
+    io.emit('wallet-status', {
+      userId: data.userId,
+      walletAddress: data.walletAddress,
+      timestamp: new Date()
+    });
+  });
+
+  // Disconnect handling
+  socket.on('disconnect', () => {
+    for (let [userId, socketId] of connectedUsers.entries()) {
+      if (socketId === socket.id) {
+        connectedUsers.delete(userId);
+        console.log(`👤 User ${userId} disconnected`);
+
+        io.emit('user-offline', {
+          userId,
+          timestamp: new Date()
+        });
+        break;
+      }
+    }
+  });
+
+  // Error handling
+  socket.on('error', (error) => {
+    console.error(`❌ Socket error from ${socket.id}:`, error);
+  });
+});
+
+// ============================================
 // HEALTH CHECK
 // ============================================
 
@@ -52,7 +157,23 @@ app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     message: 'Backend is running',
-    timestamp: new Date()
+    timestamp: new Date(),
+    websocket: 'connected'
+  });
+});
+
+// ============================================
+// SOCKET.IO STATUS ENDPOINT
+// ============================================
+
+app.get('/api/socket-status', (req, res) => {
+  res.json({
+    success: true,
+    socketIO: {
+      status: 'running',
+      connectedUsers: connectedUsers.size,
+      totalConnections: io.engine.clientsCount
+    }
   });
 });
 
@@ -94,6 +215,16 @@ app.get('/api/docs', (req, res) => {
     success: true,
     version: '1.0.0',
     message: 'MyToken Backend API',
+    websocket: {
+      url: process.env.BACKEND_URL || 'http://localhost:5000',
+      events: {
+        'user-connect': 'Connect user to websocket',
+        'transaction-update': 'Update transaction status',
+        'staking-update': 'Update staking status',
+        'email-verified': 'Notify email verification',
+        'wallet-connected': 'Notify wallet connection'
+      }
+    },
     endpoints: {
       auth: [
         'POST /api/auth/register',
@@ -102,7 +233,8 @@ app.get('/api/docs', (req, res) => {
         'POST /api/auth/logout',
         'POST /api/auth/forgot-password',
         'POST /api/auth/reset-password',
-        'GET /api/auth/me'
+        'GET /api/auth/me',
+        'GET /api/auth/check-verification/:email'
       ],
       user: [
         'GET /api/user/profile',
@@ -183,16 +315,17 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================
-// SERVER START
+// SERVER START ✅
 // ============================================
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ Backend server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📝 Health Check: http://localhost:${PORT}/api/health`);
   console.log(`📚 API Docs: http://localhost:${PORT}/api/docs`);
+  console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
 });
 
-module.exports = app;
+module.exports = { app, io, server };
